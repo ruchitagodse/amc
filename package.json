@@ -1,0 +1,48 @@
+{
+  "name": "ams",
+  "version": "0.1.0",
+  "private": true,
+  "overrides": {
+    "@grpc/grpc-js": "^1.13.6"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
+    "provision:admin": "tsx --env-file-if-exists=.env.local scripts/provision-admin.ts",
+    "test": "tsx --test tests/domain.test.ts tests/session.test.ts",
+    "test:e2e": "playwright test",
+    "test:rules": "firebase emulators:exec --only firestore,storage --project demo-ams \"tsx --test tests/rules.test.ts\"",
+    "test:firebase": "firebase emulators:exec --only auth,firestore,storage --project demo-ams \"tsx --test tests/firebase.test.ts tests/rules.test.ts\""
+  },
+  "dependencies": {
+    "firebase": "^13.4.0",
+    "firebase-admin": "^14.5.1",
+    "jsqr": "^1.4.0",
+    "lucide-react": "^1.74.0",
+    "next": "16.4.6",
+    "qrcode": "^1.5.4",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "@playwright/test": "^1.65.1",
+    "@tailwindcss/turbopack": "4.3.3",
+    "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.6",
+    "firebase-tools": "^15.36.0",
+    "prettier": "^3.10.1",
+    "tailwindcss": "4.3.3",
+    "tsx": "^4.23.15",
+    "typescript": "^5"
+  }
+}

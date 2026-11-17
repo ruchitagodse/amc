@@ -1,0 +1,8 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Server-only API performs validation and current-user/tenant authorization.
+    // Admin SDK bypasses these rules; deny all direct client access.
+    match /{document=**} { allow read, write: if false; }
+  }
+}
