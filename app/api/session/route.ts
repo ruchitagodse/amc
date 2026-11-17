@@ -1,5 +1,5 @@
 import { NextResponse, connection } from "next/server";
-import { adminAuth } from "@/lib/firebase-admin";
+import { assertRuntimeConfiguration } from "@/lib/runtime-config";
 import { isFirebase } from "@/lib/store";
 import { requireSession, isLoopback, sameOrigin } from "@/lib/auth";
 import { body, failure } from "@/lib/http";
@@ -25,6 +25,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     sameOrigin(request);
+    assertRuntimeConfiguration();
     const input = await body(request);
     let identity = {
       userId: "local-demo-admin",
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
       displayName: "Demo administrator",
     };
     if (isFirebase()) {
+      const { adminAuth } = await import("@/lib/firebase-admin");
       if (typeof input.idToken !== "string")
         throw new ForbiddenError("Firebase sign-in required");
       const token = await adminAuth().verifyIdToken(input.idToken, true);

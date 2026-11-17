@@ -1,5 +1,31 @@
 import { test, expect } from "@playwright/test";
 
+test("empty deployment errors show a recovery state without an endless spinner", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.route("**/api/session", (route) =>
+    route.fulfill({ status: 500, body: "" }),
+  );
+  await page.route("**/api/state", (route) =>
+    route.fulfill({ status: 500, body: "" }),
+  );
+  await page.goto("/");
+  await expect(page.locator(".alert.error")).toContainText(
+    "empty response (HTTP 500)",
+  );
+  await expect(
+    page.getByRole("heading", { name: "Workspace unavailable" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Loading your workspace…" }),
+  ).not.toBeVisible();
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(page.locator(".alert.error")).toContainText("HTTP 500");
+  expect(errors).toEqual([]);
+});
+
 test("camera permission error and synthetic live-camera QR decoding", async ({
   page,
 }) => {

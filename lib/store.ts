@@ -1,6 +1,5 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { firestore } from "./firebase-admin";
 import { emptyState, type State } from "./domain";
 export const isFirebase = () => process.env.AMS_STORE === "firestore";
 const namespace = process.env.AMS_DEMO_NAMESPACE || "";
@@ -25,20 +24,25 @@ async function readLocal(): Promise<State> {
     throw e;
   }
 }
-const stateRef = (tenant: string) =>
-  firestore().doc(`amsTenants/${tenant}/state/current`);
+const stateRef = async (tenant: string) => {
+  const { firestore } = await import("./firebase-admin");
+  return firestore().doc(`amsTenants/${tenant}/state/current`);
+};
 export async function readState(tenant: string): Promise<State> {
   if (isFirebase())
-    return ((await stateRef(tenant).get()).data() as State) || emptyState();
+    return (
+      ((await (await stateRef(tenant)).get()).data() as State) || emptyState()
+    );
   return serialized(readLocal);
 }
 export async function mutateState(
   tenant: string,
   fn: (state: State) => State,
 ): Promise<State> {
-  if (isFirebase())
+  if (isFirebase()) {
+    const { firestore } = await import("./firebase-admin");
+    const ref = await stateRef(tenant);
     return firestore().runTransaction(async (tx) => {
-      const ref = stateRef(tenant);
       const snapshot = await tx.get(ref);
       const next = fn((snapshot.data() as State) || emptyState());
       if (Buffer.byteLength(JSON.stringify(next)) > 850_000)
@@ -48,6 +52,7 @@ export async function mutateState(
       tx.set(ref, next);
       return next;
     });
+  }
   return serialized(async () => {
     const next = fn(await readLocal());
     await mkdir(path.dirname(localPath), { recursive: true });

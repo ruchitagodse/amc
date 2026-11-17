@@ -45,6 +45,7 @@ test(
     const server = spawn(
       process.execPath,
       [
+        "--no-experimental-require-module",
         path.join(process.cwd(), "node_modules/next/dist/bin/next"),
         "start",
         "--hostname",

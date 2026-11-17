@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { readApiResponse, isAssetState } from "@/lib/api-response";
 import {
   useCallback,
   useEffect,
@@ -281,8 +282,11 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
         );
         return;
       }
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
+      const data = await readApiResponse<unknown>(response);
+      if (!isAssetState(data))
+        throw new Error(
+          "The server returned unexpected asset data. Check deployment configuration and try again.",
+        );
       setState(data);
       setLastSync(
         new Date().toLocaleTimeString("en-IN", {
@@ -299,9 +303,12 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
     const timer = setTimeout(() => {
       void load();
       void fetch("/api/session")
-        .then((r) => r.json())
+        .then((r) => readApiResponse<{ mode?: string }>(r))
         .then((s) => {
           if (s.mode) setMode(s.mode);
+        })
+        .catch(() => {
+          /* The state request displays the actionable error. */
         });
     }, 0);
     const interval = setInterval(() => void load(), 15000);
@@ -320,8 +327,11 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ command: c, key: crypto.randomUUID() }),
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error);
+      const result = await readApiResponse<unknown>(response);
+      if (!isAssetState(result))
+        throw new Error(
+          "The server returned unexpected asset data. Refresh before retrying.",
+        );
       setState(result);
       setSuccess(message);
       setModal(null);
@@ -810,8 +820,14 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
           {!state ? (
             <div className="panel loading" role="status">
               <RefreshCw size={25} />
-              <h2>Loading your workspace…</h2>
-              <p className="muted">Fetching the latest asset records.</p>
+              <h2>
+                {error ? "Workspace unavailable" : "Loading your workspace…"}
+              </h2>
+              <p className="muted">
+                {error
+                  ? "The server could not load your assets. Use Retry after checking the deployment."
+                  : "Fetching the latest asset records."}
+              </p>
             </div>
           ) : (
             <>

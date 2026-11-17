@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { readApiResponse } from "@/lib/api-response";
 import { Boxes, ArrowRight, ShieldCheck } from "lucide-react";
 export default function Login() {
   const [error, setError] = useState("");
@@ -60,8 +61,7 @@ export default function Login() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error);
+      await readApiResponse<{ ok: boolean }>(response);
       const next = new URLSearchParams(location.search).get("next");
       location.href =
         next && /^\/(assets\/[\w-]+|scan|inventory|repairs)$/.test(next)

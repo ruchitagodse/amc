@@ -4,7 +4,7 @@ Independent Next.js 16 / React 19 AMS demo, extracted and adapted from the sourc
 
 ## Run the fictional local demo
 
-Requires Node 22.9+ (tested with Node 24).
+Requires Node 24.x, matching the pinned deployment runtime.
 
 ```powershell
 npm ci
@@ -50,6 +50,23 @@ No cloud project has been created or connected. Use a **new, dedicated demo proj
 All direct Firestore and Storage client access is denied. The server Admin SDK is the only data access path; server commands validate input, tenant context and lifecycle transitions. Scope is intentionally IT administrator only. No public employee endpoint or file uploads are exposed.
 
 Firestore stores the bounded demo aggregate at `amsTenants/{tenantId}/state/current`, updated in transactions. This adapter deliberately caps payloads at 850 KB. Split into per-entity collections and indexed queries before a larger deployment. The source Prisma schema and HRMS data have not been migrated or modified.
+
+## Vercel deployment
+
+The local fictional demo is restricted to localhost and writes to `.demo-data`; it cannot serve as cloud storage. For Vercel, configure the separate Firebase project described above and add its values to the deployment environment before rebuilding:
+
+Node is pinned to 24.x and Firebase Admin to a compatible 13.x release in `package.json`. Commit both `package.json` and `package-lock.json` and redeploy with the build cache disabled after updating from the original demo. This resolves the `jwks-rsa` / ESM-only `jose` startup error seen with Firebase Admin 14 in the deployed runtime. A regression test imports Auth and Firestore with `require(esm)` explicitly disabled.
+
+- `AMS_STORE=firestore`
+- `FIREBASE_PROJECT_ID` and matching `AMS_FIREBASE_PROJECT_CONFIRM`
+- `FIREBASE_ADMIN_CLIENT_EMAIL` and `FIREBASE_ADMIN_PRIVATE_KEY`
+- A stable random `SESSION_SECRET` of at least 32 characters
+- Matching `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+- `AMS_PUBLIC_URL` set to the deployed HTTPS origin
+
+Enable the required Firebase sign-in providers, authorize the deployed domain, provision a tenant administrator and run the seed locally against that separate project. Do not set emulator hosts on Vercel. Public Firebase values are included at build time: redeploy after setting or changing them. Never upload service-account JSON files or commit secrets.
+
+After deploying, `/api/state` should return a JSON 401 before sign-in, or a JSON 503 naming missing configuration. An empty 500 from every API route indicates a function startup/runtime failure: inspect the first error in the deployment's Vercel Runtime Logs. The frontend now handles empty/non-JSON responses and stops showing an indefinite loading state; it cannot repair a remote server startup failure.
 
 ## Mobile QR demonstration
 

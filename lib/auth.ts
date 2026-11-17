@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { adminAuth } from "./firebase-admin";
+import { assertRuntimeConfiguration } from "./runtime-config";
 import { isFirebase } from "./store";
 import {
   parseSessionCookie,
@@ -17,6 +17,7 @@ export function sameOrigin(request: Request) {
     throw new ForbiddenError("Same-origin request required");
 }
 export async function requireSession(request: Request): Promise<AppSession> {
+  assertRuntimeConfiguration();
   const value = (await cookies()).get(getSessionCookieName())?.value;
   if (!value)
     throw new UnauthorizedError("Sign in to access asset information");
@@ -29,6 +30,7 @@ export async function requireSession(request: Request): Promise<AppSession> {
   if (session.role !== "tenant_admin")
     throw new ForbiddenError("Administrator access required");
   if (isFirebase()) {
+    const { adminAuth } = await import("./firebase-admin");
     const user = await adminAuth().getUser(session.userId);
     const claims = user.customClaims;
     if (
