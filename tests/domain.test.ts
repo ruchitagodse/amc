@@ -8,6 +8,74 @@ import {
 } from "../lib/domain";
 import { seedDemo } from "../lib/demo";
 
+test("employees can be created, edited and allocated assets without login accounts", () => {
+  let s = seedDemo();
+  const create = {
+    type: "employee.save",
+    displayName: "Asha  Verma",
+    department: "IT Support",
+  };
+  s = applyCommand(s, create, "test-employee-001", "Admin");
+  assert.equal(s.employees.at(-1)?.displayName, "Asha Verma");
+  const repeated = applyCommand(s, create, "test-employee-001", "Admin");
+  assert.deepEqual(repeated, s);
+  assert.throws(
+    () =>
+      applyCommand(
+        s,
+        { ...create, displayName: "asha verma", department: "it support" },
+        "test-employee-002",
+        "Admin",
+      ),
+    /already exists/,
+  );
+  assert.throws(() =>
+    applyCommand(
+      s,
+      { ...create, displayName: " " },
+      "test-employee-003",
+      "Admin",
+    ),
+  );
+  s = applyCommand(
+    s,
+    {
+      type: "asset.assign",
+      assetId: s.assets[0].id,
+      employeeId: "test-employee-001",
+      notes: "",
+    },
+    "test-employee-assign",
+    "Admin",
+  );
+  s = applyCommand(
+    s,
+    {
+      type: "employee.save",
+      id: "test-employee-001",
+      displayName: "Asha Verma",
+      department: "Operations",
+    },
+    "test-employee-edit",
+    "Admin",
+  );
+  assert.equal(s.assets[0].employeeId, "test-employee-001");
+  assert.equal(
+    s.employees.find((e) => e.id === "test-employee-001")?.department,
+    "Operations",
+  );
+  assert.throws(
+    () =>
+      applyCommand(
+        s,
+        { ...create, id: "missing-employee" },
+        "test-employee-missing",
+        "Admin",
+      ),
+    /not found/,
+  );
+});
+
 test("seed is repeatable and contains fictional scenario prerequisites", () => {
   const s = seedDemo();
   assert.equal(s.assets.length, 12);

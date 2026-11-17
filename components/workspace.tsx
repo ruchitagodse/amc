@@ -55,6 +55,7 @@ import {
   type Category,
   type Vendor,
   type Repair,
+  type Employee,
 } from "@/lib/domain";
 import { Scanner } from "./scanner";
 
@@ -181,6 +182,7 @@ function Empty({
   );
 }
 type Modal =
+  | { kind: "employee"; employee?: Employee }
   | { kind: "asset"; asset?: Asset }
   | { kind: "category"; category?: Category }
   | { kind: "vendor"; vendor?: Vendor }
@@ -383,6 +385,16 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
           phone: str("phone"),
         },
         "Vendor saved successfully.",
+      );
+    else if (modal.kind === "employee")
+      await command(
+        {
+          type: "employee.save",
+          id: modal.employee?.id,
+          displayName: str("displayName"),
+          department: str("department"),
+        },
+        "Employee saved successfully.",
       );
     else if (modal.kind === "assign")
       await command(
@@ -661,6 +673,7 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
           </span>
           AssetDesk<span className="brand-dot">•</span>
         </Link>
+
         <p className="sidebar-caption">WORKSPACE</p>
         <nav>
           {nav.map((item) => (
@@ -726,6 +739,7 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
             <button
               className="icon-button mobile-menu"
               aria-label="Open navigation"
+
               onClick={() => setMobile(true)}
             >
               <Menu size={20} />
@@ -1208,10 +1222,20 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
                         <h2>Employee allocations</h2>
                         <p>Open any asset to assign, transfer or return it</p>
                       </div>
-                      <Link className="btn-secondary" href="/inventory">
-                        <Plus size={15} />
-                        Allocate an asset
-                      </Link>
+                      <div className="heading-actions">
+                        <button
+                          className="btn-primary"
+                          disabled={busy}
+                          onClick={() => setModal({ kind: "employee" })}
+                        >
+                          <Plus size={16} />
+                          Add employee
+                        </button>
+                        <Link className="btn-secondary" href="/inventory">
+                          <Plus size={15} />
+                          Allocate an asset
+                        </Link>
+                      </div>
                     </div>
                     <div className="employee-grid">
                       {state.employees.map((e) => {
@@ -1234,6 +1258,15 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
                               <span className="count-pill">
                                 {assigned.length}
                               </span>
+                              <button
+                                className="btn-secondary btn-small"
+                                aria-label={`Edit employee ${e.displayName}`}
+                                onClick={() =>
+                                  setModal({ kind: "employee", employee: e })
+                                }
+                              >
+                                Edit
+                              </button>
                             </div>
                             {assigned.length ? (
                               assigned.map((a) => (
@@ -1257,6 +1290,12 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
                         );
                       })}
                     </div>
+                    {!state.employees.length && (
+                      <Empty
+                        title="No employees yet"
+                        description="Use Add employee to create a record, then assign an available asset."
+                      />
+                    )}
                   </section>
                   <section className="panel allocation-history">
                     <div className="panel-heading">
@@ -1597,27 +1636,31 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
       {modal && modal.kind !== "retire" && state && (
         <Dialog
           title={
-            modal.kind === "asset"
-              ? modal.asset
-                ? "Edit asset"
-                : "Register an asset"
-              : modal.kind === "category"
-                ? modal.category
-                  ? "Edit category"
-                  : "Add category"
-                : modal.kind === "vendor"
-                  ? modal.vendor
-                    ? "Edit vendor"
-                    : "Add vendor"
-                  : modal.kind === "assign"
-                    ? modal.asset.employeeId
-                      ? "Transfer asset"
-                      : "Assign asset"
-                    : modal.kind === "return"
-                      ? "Return asset"
-                      : modal.kind === "repair"
-                        ? "Report damage"
-                        : `Update repair · ${repairStages[repairStages.indexOf(modal.repair.status) + 1]}`
+            modal.kind === "employee"
+              ? modal.employee
+                ? "Edit employee"
+                : "Add employee"
+              : modal.kind === "asset"
+                ? modal.asset
+                  ? "Edit asset"
+                  : "Register an asset"
+                : modal.kind === "category"
+                  ? modal.category
+                    ? "Edit category"
+                    : "Add category"
+                  : modal.kind === "vendor"
+                    ? modal.vendor
+                      ? "Edit vendor"
+                      : "Add vendor"
+                    : modal.kind === "assign"
+                      ? modal.asset.employeeId
+                        ? "Transfer asset"
+                        : "Assign asset"
+                      : modal.kind === "return"
+                        ? "Return asset"
+                        : modal.kind === "repair"
+                          ? "Report damage"
+                          : `Update repair · ${repairStages[repairStages.indexOf(modal.repair.status) + 1]}`
           }
           onClose={() => {
             if (!busy) setModal(null);
@@ -1630,6 +1673,24 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
             }}
           >
             <div className="form-content">
+              {modal.kind === "employee" && (
+                <>
+                  <p className="muted form-help">
+                    Create an employee record for asset allocation. No employee
+                    login or password is needed.
+                  </p>
+                  <Field
+                    label="Employee name"
+                    name="displayName"
+                    value={modal.employee?.displayName}
+                  />
+                  <Field
+                    label="Department"
+                    name="department"
+                    value={modal.employee?.department}
+                  />
+                </>
+              )}
               {error && (
                 <p className="alert error" role="alert">
                   {error}

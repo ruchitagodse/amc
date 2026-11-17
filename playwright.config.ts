@@ -15,7 +15,13 @@ export default defineConfig({
     url: "http://localhost:3100/login",
     reuseExistingServer: false,
     timeout: 120000,
-    env: { AMS_STORE: "local", AMS_DEMO_NAMESPACE: "e2e" },
+    env: {
+      AMS_STORE: "local",
+      AMS_DEMO_NAMESPACE: "e2e",
+      AMS_PUBLIC_URL: "http://localhost:3100",
+      VERCEL: "0",
+      SESSION_SECRET: "fictional-e2e-session-secret-do-not-use-for-cloud",
+    },
   },
   reporter: "list",
 });

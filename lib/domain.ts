@@ -114,6 +114,12 @@ const date = z
   );
 export const commandSchema = z.discriminatedUnion("type", [
   z.object({
+    type: z.literal("employee.save"),
+    id: id.optional(),
+    displayName: text,
+    department: text,
+  }),
+  z.object({
     type: z.literal("asset.create"),
     assetName: text,
     assetCategoryId: id,
@@ -297,6 +303,28 @@ export function applyCommand(
       throw new ConflictError("Vendor name or code already exists");
     if (existing) Object.assign(existing, c);
     else s.vendors.push({ ...c, id: key });
+  } else if (c.type === "employee.save") {
+    const existing = c.id ? s.employees.find((e) => e.id === c.id) : undefined;
+    if (c.id && !existing) throw new NotFoundError("Employee");
+    const normalize = (value: string) =>
+      value.trim().replace(/\s+/g, " ").toLowerCase();
+    if (
+      s.employees.some(
+        (e) =>
+          e.id !== c.id &&
+          normalize(e.displayName) === normalize(c.displayName) &&
+          normalize(e.department) === normalize(c.department),
+      )
+    )
+      throw new ConflictError(
+        "An employee with this name and department already exists",
+      );
+    const fields = {
+      displayName: c.displayName.replace(/\s+/g, " "),
+      department: c.department.replace(/\s+/g, " "),
+    };
+    if (existing) Object.assign(existing, fields);
+    else s.employees.push({ id: key, ...fields });
   } else if (c.type === "asset.assign") {
     const a = asset(c.assetId);
     const e = s.employees.find((e) => e.id === c.employeeId);

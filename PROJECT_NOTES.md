@@ -49,3 +49,9 @@
 - Deployment needs the updated package files and a fresh Vercel build. Configure the separate Firebase project and cloud environment variables per README; the local seed file and localhost login are intentionally not deployed as cloud storage/authentication.
 - Pinned a CommonJS-compatible UUID 11 release through overrides to remove security findings introduced by the compatible Firebase SDK dependency tree. Current production audit reports zero vulnerabilities; eleven moderate findings remain in development tooling.
 - Verification after deployment correction: TypeScript and ESLint pass; production build passes; twelve unit/runtime tests, six browser tests and two Firebase emulator tests pass. The emulator integration server also runs with `--no-experimental-require-module`. The remote Vercel deployment has not been changed; it must be rebuilt from the updated code and lockfile before live verification.
+
+## Employee management
+- Added administrator-only `employee.save` through the existing validated command API, with create/edit forms in Employee Allocation. Names/departments are normalized and duplicate pairs rejected. Editing retains employee IDs and existing asset/allocation references.
+- Employee records require no Firebase login or password. Employee self-service remains outside this phase.
+- User narrowed this change to employee management; proposed mobile layout changes were removed. Existing mobile layout is preserved.
+- Added a targeted employee domain test and browser workflow for create, edit, persistence, duplicate rejection, allocation and return. `TESTING.md` contains the manual employee walkthrough. A fictional test-build helper keeps browser checks isolated when local cloud credentials are configured.

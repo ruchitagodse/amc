@@ -19,6 +19,8 @@
     "provision:admin": "tsx --env-file-if-exists=.env.local scripts/provision-admin.ts",
     "test": "tsx --test tests/domain.test.ts tests/session.test.ts tests/api-response.test.ts",
     "test:e2e": "playwright test",
+    "test:build": "node scripts/build-demo-tests.mjs",
+    "test:employees": "tsx --test --test-name-pattern=employees tests/domain.test.ts",
     "test:rules": "firebase emulators:exec --only firestore,storage --project demo-ams \"tsx --test tests/rules.test.ts\"",
     "test:firebase": "firebase emulators:exec --only auth,firestore,storage --project demo-ams \"tsx --test tests/firebase.test.ts tests/rules.test.ts\""
   },

@@ -80,10 +80,14 @@ npm run lint
 npm test
 npm run build
 npx playwright install chromium
+npm run test:build
 npm run test:e2e
 npm run test:firebase
+npm run build
 ```
 
 The browser suite uses production output, a separate `state-e2e.json` fixture and port 3100. Firebase integration uses the `demo-ams` emulators only, ports 8080/9099/9199, and a temporary production server on port 3200. Java 21 is required for the emulators. `test:firebase` verifies transactions, tenant isolation, disabled/removed administrators, signed sessions, and Firestore/Storage rules. `npm run test:rules` runs only the rule suite.
+
+Use **Employee Allocation → Add employee** to create staff records and **Edit** on their cards to update them. These are allocation records, not Firebase login accounts. See [TESTING.md](TESTING.md) for the employee testing walkthrough.
 
 Physical camera hardware, configured Google/Microsoft providers, a real cloud deployment and real printer output require environment-specific acceptance testing. They are not claimed as tested by the automated suite. The runtime dependency audit is clean after a patched gRPC override; Firebase CLI development dependencies still report moderate advisories. No forced breaking downgrade is applied. Phase exclusions remain unchanged: no employee portal, approval workflows, email notifications, procurement, AMC, accounting or advanced analytics.
