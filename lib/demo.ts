@@ -68,6 +68,8 @@ export function seedDemo(existing: State = emptyState()): State {
       {
         type: "asset.create",
         assetName,
+        manufacturer: assetName.split(" ")[0],
+        model: assetName.split(" ").slice(1).join(" "),
         assetCategoryId: `demo-category-${i < 4 ? 0 : i < 7 ? 1 : i < 10 ? 2 : 3}`,
         serialNumber: `DEMO-${String(i + 1).padStart(5, "0")}`,
         vendorId: `demo-vendor-${i % 2}`,
@@ -86,7 +88,7 @@ export function seedDemo(existing: State = emptyState()): State {
         type: "asset.assign",
         assetId: `demo-asset-${String(i + 1).padStart(3, "0")}`,
         employeeId: s.employees[j % 5].id,
-        notes: "Fictional demonstration allocation",
+        notes: "Demonstration allocation",
       },
       `demo-allocation-${i}`,
     ),

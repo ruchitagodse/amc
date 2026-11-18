@@ -30,7 +30,7 @@ test("camera permission error and synthetic live-camera QR decoding", async ({
   page,
 }) => {
   await page.goto("/login");
-  await page.getByRole("button", { name: "Enter fictional demo" }).click();
+  await page.getByRole("button", { name: "Enter demo" }).click();
   await expect(
     page.getByRole("heading", { name: "Asset overview", exact: true }),
   ).toBeVisible();
@@ -76,7 +76,9 @@ test("camera permission error and synthetic live-camera QR decoding", async ({
     });
   }, dataUrl);
   await page.getByRole("button", { name: "Start camera" }).click();
-  await expect(page).toHaveURL(/\/assets\/demo-asset-002$/, { timeout: 10000 });
+  await expect(page).toHaveURL(/\/public\/assets\/[A-Za-z0-9_-]{43}$/, {
+    timeout: 10000,
+  });
   await expect(
     page.getByRole("heading", { name: "MacBook Air M2", exact: true }),
   ).toBeVisible();
@@ -102,7 +104,7 @@ test("client demonstration: Dell → QR → Rahul → battery repair → return 
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/assets/demo-asset-001");
   await expect(page).toHaveURL(/login\?next=/);
-  await page.getByRole("button", { name: "Enter fictional demo" }).click();
+  await page.getByRole("button", { name: "Enter demo" }).click();
   await expect(
     page.getByRole("heading", { name: "Dell Latitude 5440", exact: true }),
   ).toBeVisible();
@@ -137,6 +139,8 @@ test("client demonstration: Dell → QR → Rahul → battery repair → return 
   await expect(
     page.getByRole("heading", { name: "Dell Latitude 5440", exact: true }),
   ).toBeVisible();
+  await expect(page).toHaveURL(/\/public\/assets\/[A-Za-z0-9_-]{43}$/);
+  await page.goto("/assets/demo-asset-001");
   await page
     .getByRole("button", { name: "Report damage", exact: true })
     .click();
@@ -159,11 +163,21 @@ test("client demonstration: Dell → QR → Rahul → battery repair → return 
     "Repaired",
     "Returned",
   ]) {
-    await page.getByRole("button", { name: stage, exact: true }).click();
+    const label = (
+      {
+        "Sent to Vendor": "Send to vendor",
+        "Under Repair": "Start repair",
+        Repaired: "Mark as repaired",
+        Returned: "Mark as returned",
+      } as Record<string, string>
+    )[stage];
+    await page.getByRole("button", { name: label, exact: true }).click();
+    await page.getByLabel("Repair status").selectOption(stage);
     await page.getByLabel("Actual repair cost (₹)").fill("3200");
     await page.getByLabel("Repair notes").fill("Battery replaced and tested");
     await page
-      .getByRole("button", { name: "Update repair", exact: true })
+      .getByRole("dialog")
+      .getByRole("button", { name: label, exact: true })
       .click();
     await expect(page.getByRole("dialog")).not.toBeVisible();
   }
@@ -219,7 +233,7 @@ test("master forms, filtering, allocation transfer, retirement, mobile layout an
   page,
 }) => {
   await page.goto("/login");
-  await page.getByRole("button", { name: "Enter fictional demo" }).click();
+  await page.getByRole("button", { name: "Enter demo" }).click();
   await page
     .getByRole("link", { name: "Category Master", exact: true })
     .click();
@@ -323,11 +337,11 @@ test("master forms, filtering, allocation transfer, retirement, mobile layout an
   expect((await page.request.get("/api/state")).status()).toBe(401);
 });
 
-test("every fictional asset label decodes to its own protected detail page", async ({
+test("every demo asset label decodes to its own public information card", async ({
   page,
 }) => {
   await page.goto("/login");
-  await page.getByRole("button", { name: "Enter fictional demo" }).click();
+  await page.getByRole("button", { name: "Enter demo" }).click();
   await expect(
     page.getByRole("heading", { name: "Asset overview", exact: true }),
   ).toBeVisible();
@@ -343,6 +357,10 @@ test("every fictional asset label decodes to its own protected detail page", asy
       },
     });
     expect(generated.ok()).toBe(true);
+    const updated = await generated.json();
+    const token = updated.assets.find(
+      (a: { id: string }) => a.id === asset.id,
+    ).qrToken;
     const qr = await page.request.get(`/api/qr?id=${asset.id}`);
     expect(qr.ok()).toBe(true);
     await page.goto("/scan");
@@ -351,7 +369,9 @@ test("every fictional asset label decodes to its own protected detail page", asy
       mimeType: "image/png",
       buffer: await qr.body(),
     });
-    await expect(page).toHaveURL(`http://localhost:3100/assets/${asset.id}`);
+    await expect(page).toHaveURL(
+      `http://localhost:3100/public/assets/${token}`,
+    );
     await expect(
       page.getByRole("heading", { name: asset.assetName, exact: true }),
     ).toBeVisible();

@@ -56,6 +56,7 @@ import {
   type Vendor,
   type Repair,
   type Employee,
+  type RepairStage,
 } from "@/lib/domain";
 import { Scanner } from "./scanner";
 
@@ -137,6 +138,14 @@ const date = (v: string) =>
     year: "numeric",
     timeZone: "Asia/Kolkata",
   });
+const repairAction = (status: RepairStage) =>
+  ({
+    Reported: "Report damage",
+    "Sent to Vendor": "Send to vendor",
+    "Under Repair": "Start repair",
+    Repaired: "Mark as repaired",
+    Returned: "Mark as returned",
+  })[status];
 function Badge({ status }: { status: string }) {
   return (
     <span className={`badge ${status.toLowerCase().replaceAll(" ", "-")}`}>
@@ -268,6 +277,18 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
   const [modal, setModal] = useState<Modal | null>(null);
+  const [qrAction, setQrAction] = useState<{
+    type: "qr.regenerate" | "qr.revoke";
+    asset: Asset;
+  } | null>(null);
+  const [repairStatus, setRepairStatus] =
+    useState<RepairStage>("Sent to Vendor");
+  function openRepair(repair: Repair) {
+    setRepairStatus(
+      repairStages[repairStages.indexOf(repair.status) + 1] || repair.status,
+    );
+    setModal({ kind: "advance", repair });
+  }
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [category, setCategory] = useState("all");
@@ -356,6 +377,8 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
           type: modal.asset ? "asset.edit" : "asset.create",
           ...(modal.asset ? { assetId: modal.asset.id } : {}),
           assetName: str("assetName"),
+          manufacturer: str("manufacturer"),
+          model: str("model"),
           assetCategoryId: str("assetCategoryId"),
           serialNumber: str("serialNumber"),
           vendorId: str("vendorId"),
@@ -431,11 +454,11 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
         {
           type: "repair.advance",
           repairId: modal.repair.id,
-          status: repairStages[repairStages.indexOf(modal.repair.status) + 1],
+          status: str("repairStatus"),
           actualCost: str("actualCost") === "" ? null : num("actualCost"),
           notes: str("notes"),
         },
-        "Repair status updated.",
+        `Repair marked ${str("repairStatus")}.`,
       );
   }
   const [title, subtitle] = descriptions[view];
@@ -579,7 +602,14 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
                     e.assetId}
                 </Link>
               )}
-              {e.notes && <p>{e.notes}</p>}
+              {e.notes && (
+                <p>
+                  {e.notes.replaceAll(
+                    "Fictional demonstration allocation",
+                    "Demonstration allocation",
+                  )}
+                </p>
+              )}
               <small>
                 {date(e.eventAt)} ·{" "}
                 {new Date(e.eventAt).toLocaleTimeString("en-IN", {
@@ -644,9 +674,11 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
                     <button
                       className="btn-secondary btn-small"
                       disabled={busy}
-                      onClick={() => setModal({ kind: "advance", repair: r })}
+                      onClick={() => openRepair(r)}
                     >
-                      {repairStages[repairStages.indexOf(r.status) + 1]}
+                      {repairAction(
+                        repairStages[repairStages.indexOf(r.status) + 1],
+                      )}
                       <ChevronRight size={14} />
                     </button>
                   )}
@@ -701,7 +733,7 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
               </strong>
               <small>
                 {mode === "local"
-                  ? "Fictional data · Local storage"
+                  ? "Demo data · Local storage"
                   : "Firebase · Administrator only"}
               </small>
             </div>
@@ -1536,12 +1568,12 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
                           <h2>Asset QR label</h2>
                           <QrCode size={19} />
                         </div>
-                        {detail.qrGeneratedAt ? (
+                        {detail.qrToken && !detail.qrRevokedAt ? (
                           <>
                             <div className="print-label">
                               <Image
                                 unoptimized
-                                src={`/api/qr?id=${encodeURIComponent(detail.id)}`}
+                                src={`/api/qr?id=${encodeURIComponent(detail.id)}&v=${encodeURIComponent(detail.qrGeneratedAt || "")}`}
                                 alt={`QR label for ${detail.assetName}`}
                                 width={180}
                                 height={180}
@@ -1549,7 +1581,7 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
                               <strong>{detail.assetCode}</strong>
                               <small>{detail.assetName}</small>
                               <span className="print-only">
-                                AssetDesk · Authorized access required
+                                AssetDesk · Public asset information
                               </span>
                             </div>
                             <div className="qr-actions">
@@ -1570,22 +1602,64 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
                               </button>
                             </div>
                             <p className="qr-caption">
-                              Contains only a secure asset link.
-                              <br />
-                              Sign-in required to view details.
+                              Anyone with this label can view basic asset
+                              information. Employee, cost and internal records
+                              stay private.
                             </p>
+                            <div className="qr-management">
+                              <Link
+                                className="text-link"
+                                href={`/public/assets/${detail.qrToken}`}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Open public card <ArrowUpRight size={15} />
+                              </Link>
+                              <div>
+                                <button
+                                  className="btn-secondary btn-small"
+                                  disabled={busy}
+                                  onClick={() =>
+                                    setQrAction({
+                                      type: "qr.regenerate",
+                                      asset: detail,
+                                    })
+                                  }
+                                >
+                                  Regenerate link
+                                </button>
+                                <button
+                                  className="btn-danger btn-small"
+                                  disabled={busy}
+                                  onClick={() =>
+                                    setQrAction({
+                                      type: "qr.revoke",
+                                      asset: detail,
+                                    })
+                                  }
+                                >
+                                  Revoke link
+                                </button>
+                              </div>
+                            </div>
                           </>
                         ) : (
                           <div className="qr-empty">
                             <QrCode size={48} />
-                            <p>Create a scannable label for this asset.</p>
+                            <p>
+                              {detail.qrRevokedAt
+                                ? "Public link revoked. Generate a new label to share this asset again."
+                                : detail.qrGeneratedAt
+                                  ? "Replace the legacy label with a secure public asset link."
+                                  : "Create a public, read-only label for this asset."}
+                            </p>
                             <button
                               className="btn-primary"
                               disabled={busy}
                               onClick={() =>
                                 void command(
                                   { type: "qr.generate", assetId: detail.id },
-                                  "QR generated. Download or print your asset label.",
+                                  "Public QR generated. Download or print your asset label.",
                                 )
                               }
                             >
@@ -1660,7 +1734,7 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
                         ? "Return asset"
                         : modal.kind === "repair"
                           ? "Report damage"
-                          : `Update repair · ${repairStages[repairStages.indexOf(modal.repair.status) + 1]}`
+                          : "Update repair status"
           }
           onClose={() => {
             if (!busy) setModal(null);
@@ -1721,6 +1795,20 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
                     name="serialNumber"
                     value={modal.asset?.serialNumber}
                   />
+                  <div className="form-row">
+                    <Field
+                      label="Brand / manufacturer"
+                      name="manufacturer"
+                      required={false}
+                      value={modal.asset?.manufacturer}
+                    />
+                    <Field
+                      label="Model"
+                      name="model"
+                      required={false}
+                      value={modal.asset?.model}
+                    />
+                  </div>
                   <Field
                     label="Purchase vendor"
                     name="vendorId"
@@ -1908,7 +1996,7 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
                       <span
                         key={stage}
                         className={
-                          i <= repairStages.indexOf(modal.repair.status) + 1
+                          i <= repairStages.indexOf(modal.repair.status)
                             ? "done"
                             : ""
                         }
@@ -1920,11 +2008,44 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
                   <p className="muted">
                     {modal.repair.issue} · {vendorName(modal.repair.vendorId)}
                   </p>
+                  <p className="muted form-help">
+                    Current status: <strong>{modal.repair.status}</strong>
+                  </p>
+                  <label>
+                    Repair status
+                    <select
+                      name="repairStatus"
+                      aria-label="Repair status"
+                      value={repairStatus}
+                      onChange={(event) =>
+                        setRepairStatus(event.target.value as RepairStage)
+                      }
+                      required
+                    >
+                      {repairStages.map((stage) => (
+                        <option
+                          key={stage}
+                          value={stage}
+                          disabled={
+                            repairStages.indexOf(stage) <=
+                              repairStages.indexOf(modal.repair.status) ||
+                            (stage === "Returned" &&
+                              modal.repair.status !== "Repaired")
+                          }
+                        >
+                          {stage}
+                          {stage === modal.repair.status ? " (current)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <Field
                     label="Actual repair cost (₹)"
                     name="actualCost"
                     type="number"
-                    required={repairStages.indexOf(modal.repair.status) >= 2}
+                    required={
+                      repairStatus === "Repaired" || repairStatus === "Returned"
+                    }
                     value={modal.repair.actualCost ?? undefined}
                   />
                   <label>
@@ -1936,6 +2057,13 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
                     />
                   </label>
                   <p className="muted form-help">
+                    {modal.repair.status !== "Repaired" && (
+                      <>
+                        Choose Repaired and record the actual cost when the
+                        repair is complete. Save it before marking
+                        Returned.{" "}
+                      </>
+                    )}
                     Returned means received back from the vendor. Employee
                     allocation stays active until you use Return asset.
                   </p>
@@ -1957,13 +2085,47 @@ export function Workspace({ view, assetId }: { view: View; assetId?: string }) {
                   : modal.kind === "repair"
                     ? "Report damage"
                     : modal.kind === "advance"
-                      ? "Update repair"
+                      ? repairAction(repairStatus)
                       : "Save changes"}
               </button>
             </div>
           </form>
         </Dialog>
       )}
+      <ConfirmModal
+        open={!!qrAction}
+        title={
+          qrAction?.type === "qr.revoke"
+            ? "Revoke public QR link?"
+            : "Regenerate public QR link?"
+        }
+        message={
+          qrAction?.type === "qr.revoke"
+            ? "Anyone scanning the current label will no longer be able to open this asset card. The asset and its internal history will be preserved."
+            : "The current link and all labels printed from it will stop working. Download or print the replacement label after regeneration."
+        }
+        confirmLabel={
+          qrAction?.type === "qr.revoke" ? "Revoke link" : "Regenerate link"
+        }
+        confirmButtonClassName={
+          qrAction?.type === "qr.revoke" ? "btn-danger" : "btn-primary"
+        }
+        pending={busy}
+        onCancel={() => {
+          if (!busy) setQrAction(null);
+        }}
+        onConfirm={() => {
+          if (qrAction)
+            void command(
+              { type: qrAction.type, assetId: qrAction.asset.id },
+              qrAction.type === "qr.revoke"
+                ? "Public QR link revoked."
+                : "Public QR link regenerated. Replace the previous labels.",
+            ).then((ok) => {
+              if (ok) setQrAction(null);
+            });
+        }}
+      />
       <ConfirmModal
         open={modal?.kind === "retire"}
         title="Retire this asset?"

@@ -62,9 +62,7 @@ export async function POST(request: Request) {
         displayName: user.displayName || "IT administrator",
       };
     } else if (!isLoopback(request) || input.mode !== "demo")
-      throw new ForbiddenError(
-        "Fictional demo access is restricted to localhost",
-      );
+      throw new ForbiddenError("Demo access is restricted to localhost");
     const response = NextResponse.json({ ok: true });
     const cookie = await buildSessionCookie({
       ...identity,

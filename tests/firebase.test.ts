@@ -6,6 +6,7 @@ import { adminAuth, firestore } from "../lib/firebase-admin";
 import { mutateState, readState } from "../lib/store";
 import { seedDemo } from "../lib/demo";
 import { applyCommand } from "../lib/domain";
+import { newQrToken, qrTokenHash } from "../lib/qr-token";
 
 test(
   "Firebase adapter transactions, tenant isolation, identity verification and live access revocation",
@@ -107,12 +108,18 @@ test(
       assert.equal((await readState(tenant)).assets.length, 12);
       // Separate concurrent transactions cannot create two active allocations or duplicate events.
       const payload = { type: "qr.generate", assetId: "demo-asset-001" };
+      const firstQr = newQrToken();
+      const secondQr = newQrToken();
       await Promise.all([
         mutateState(tenant, (s) =>
-          applyCommand(s, payload, "concurrent-qr-0001", "Test"),
+          applyCommand(s, payload, "concurrent-qr-0001", "Test", undefined, {
+            qrToken: firstQr,
+          }),
         ),
         mutateState(tenant, (s) =>
-          applyCommand(s, payload, "concurrent-qr-0002", "Test"),
+          applyCommand(s, payload, "concurrent-qr-0002", "Test", undefined, {
+            qrToken: secondQr,
+          }),
         ),
       ]);
       assert.equal(
@@ -171,6 +178,71 @@ test(
         ).status,
         401,
       );
+      const activeToken = (await readState(tenant)).assets[0].qrToken!;
+      const publicCard = await request(`/api/public/assets/${activeToken}`);
+      assert.equal(publicCard.status, 200);
+      assert.deepEqual(Object.keys(await publicCard.json()).sort(), [
+        "assetId",
+        "brand",
+        "category",
+        "condition",
+        "model",
+        "name",
+        "status",
+      ]);
+      const lookup = await firestore()
+        .doc(`amsQrLinks/${qrTokenHash(activeToken)}`)
+        .get();
+      assert.equal(lookup.get("tenantId"), tenant);
+      assert.equal(lookup.get("assetId"), "demo-asset-001");
+      const rotate = await request("/api/commands", {
+        method: "POST",
+        headers: {
+          Cookie: cookie,
+          Origin: origin,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          key: "emulator-rotate-token",
+          command: { type: "qr.regenerate", assetId: "demo-asset-001" },
+        }),
+      });
+      assert.equal(rotate.status, 200);
+      const rotatedToken = (await rotate.json()).assets[0].qrToken;
+      assert.notEqual(rotatedToken, activeToken);
+      assert.equal(
+        (await request(`/api/public/assets/${activeToken}`)).status,
+        404,
+      );
+      assert.equal(
+        (await request(`/api/public/assets/${rotatedToken}`)).status,
+        200,
+      );
+      const revoked = await request("/api/commands", {
+        method: "POST",
+        headers: {
+          Cookie: cookie,
+          Origin: origin,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          key: "emulator-revoke-token",
+          command: { type: "qr.revoke", assetId: "demo-asset-001" },
+        }),
+      });
+      assert.equal(revoked.status, 200);
+      assert.equal(
+        (await request(`/api/public/assets/${rotatedToken}`)).status,
+        404,
+      );
+      assert.equal(
+        (
+          await firestore()
+            .doc(`amsQrLinks/${qrTokenHash(rotatedToken)}`)
+            .get()
+        ).exists,
+        false,
+      );
       await auth.setCustomUserClaims(user.uid, {
         role: "employee",
         tenantId: tenant,
@@ -190,6 +262,11 @@ test(
       await auth.deleteUser(user.uid);
       await auth.deleteUser(other.uid);
       await firestore().doc(`amsTenants/${tenant}/state/current`).delete();
+      const links = await firestore()
+        .collection("amsQrLinks")
+        .where("tenantId", "==", tenant)
+        .get();
+      for (const link of links.docs) await link.ref.delete();
     }
   },
 );

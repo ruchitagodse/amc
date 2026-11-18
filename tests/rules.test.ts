@@ -34,6 +34,11 @@ test("Firestore and Storage deny direct client reads and writes, including forge
       );
       await assertFails(getDoc(target));
       await assertFails(setDoc(target, { assets: [] }));
+      const lookup = doc(ctx.firestore(), `amsQrLinks/${"a".repeat(64)}`);
+      await assertFails(getDoc(lookup));
+      await assertFails(
+        setDoc(lookup, { tenantId: "attacker", assetId: "anything" }),
+      );
       const file = ref(ctx.storage(), "private/employee.txt");
       await assertFails(uploadBytes(file, new Uint8Array([1, 2])));
       await assertFails(getBytes(file));

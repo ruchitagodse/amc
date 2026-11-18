@@ -89,7 +89,9 @@ test("complete Dell QR → Rahul → battery repair → return lifecycle without
   let s = seedDemo();
   const a = s.assets[0];
   const run = (c: unknown, key: string) => {
-    s = applyCommand(s, c, key, "IT administrator");
+    s = applyCommand(s, c, key, "IT administrator", undefined, {
+      qrToken: "A".repeat(43),
+    });
   };
   run({ type: "qr.generate", assetId: a.id }, "test-qr-0001");
   run({ type: "qr.generate", assetId: a.id }, "test-qr-0002");
@@ -242,10 +244,10 @@ test("repair transitions and asset state invariants are enforced", () => {
       attempt({
         type: "repair.advance",
         repairId: "demo-repair-007",
-        status: "Repaired",
+        status: "Returned",
         actualCost: 1,
       }),
-    /one stage/,
+    /before marking it Returned/,
   );
   assert.throws(
     () =>
@@ -298,6 +300,108 @@ test("repair transitions and asset state invariants are enforced", () => {
     /Actual repair cost/,
   );
 });
+test("repair can be marked Repaired from a pending stage and then Returned with truthful history", () => {
+  let s = seedDemo();
+  s = applyCommand(
+    s,
+    {
+      type: "repair.advance",
+      repairId: "demo-repair-007",
+      status: "Sent to Vendor",
+      actualCost: null,
+      notes: "Vendor received display",
+    },
+    "test-completion-sent",
+    "Admin",
+  );
+  s = applyCommand(
+    s,
+    {
+      type: "repair.advance",
+      repairId: "demo-repair-007",
+      status: "Repaired",
+      actualCost: 200,
+      notes: "Display fixed",
+    },
+    "test-completion-repaired",
+    "Admin",
+  );
+  assert.equal(
+    s.repairs.find((r) => r.id === "demo-repair-007")?.status,
+    "Repaired",
+  );
+  assert.equal(
+    s.assets.find((a) => a.id === "demo-asset-007")?.conditionStatus,
+    "repaired",
+  );
+  assert.equal(
+    s.events.filter(
+      (e) => e.assetId === "demo-asset-007" && e.eventType === "Under Repair",
+    ).length,
+    0,
+  );
+  assert.throws(
+    () =>
+      applyCommand(
+        s,
+        {
+          type: "repair.advance",
+          repairId: "demo-repair-007",
+          status: "Under Repair",
+          actualCost: 200,
+          notes: "",
+        },
+        "test-completion-back",
+        "Admin",
+      ),
+    /move forward/,
+  );
+  s = applyCommand(
+    s,
+    {
+      type: "repair.advance",
+      repairId: "demo-repair-007",
+      status: "Returned",
+      actualCost: 200,
+      notes: "Received from vendor",
+    },
+    "test-completion-returned",
+    "Admin",
+  );
+  assert.equal(
+    s.assets.find((a) => a.id === "demo-asset-007")?.status,
+    "available",
+  );
+  const retry = applyCommand(
+    s,
+    {
+      type: "repair.advance",
+      repairId: "demo-repair-007",
+      status: "Returned",
+      actualCost: 200,
+      notes: "Received from vendor",
+    },
+    "test-completion-returned",
+    "Admin",
+  );
+  assert.deepEqual(retry, s);
+  assert.equal(
+    s.events.filter(
+      (e) =>
+        e.assetId === "demo-asset-007" && e.eventType === "Repair Completed",
+    ).length,
+    1,
+  );
+  assert.equal(
+    s.events.filter(
+      (e) =>
+        e.assetId === "demo-asset-007" &&
+        e.eventType === "Returned from Repair",
+    ).length,
+    1,
+  );
+});
+
 test("transfers close prior allocations and preserve history", () => {
   let s = seedDemo();
   const a = s.assets[1];
@@ -357,8 +461,8 @@ test("category counters and uniqueness remain governed", () => {
 test("invalid, external and non-asset QR payloads never navigate", () => {
   const origin = "https://demo.example";
   assert.equal(
-    resolveAssetQr(`${origin}/assets/opaque-123`, origin),
-    "/assets/opaque-123",
+    resolveAssetQr(`${origin}/public/assets/${"A".repeat(43)}`, origin),
+    `/public/assets/${"A".repeat(43)}`,
   );
   for (const input of [
     "javascript:alert(1)",
@@ -367,6 +471,8 @@ test("invalid, external and non-asset QR payloads never navigate", () => {
     `${origin}/api/state`,
     `${origin}/assets/a?x=1`,
     `${origin}/assets/a#foo`,
+    `${origin}/public/assets/short`,
+    `${origin}/public/assets/${"A".repeat(43)}?x=1`,
   ])
     assert.throws(() => resolveAssetQr(input, origin));
 });

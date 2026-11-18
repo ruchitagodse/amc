@@ -13,19 +13,19 @@ export async function GET(request: Request) {
       (a) => a.id === id,
     );
     if (!asset) throw new NotFoundError("Asset");
-    if (!asset.qrGeneratedAt)
+    if (!asset.qrToken || asset.qrRevokedAt)
       throw new ConflictError("Generate the asset QR first");
-    // QR contains only an opaque detail URL. All detail and data requests require a session.
+    // The public URL contains only a cryptographically random capability token.
     const base = process.env.AMS_PUBLIC_URL || new URL(request.url).origin;
     const png = await QRCode.toBuffer(
-      `${base}/assets/${encodeURIComponent(asset.id)}`,
+      `${base.replace(/\/$/, "")}/public/assets/${asset.qrToken}`,
       { width: 480, margin: 4, errorCorrectionLevel: "M" },
     );
     return new Response(new Uint8Array(png), {
       headers: {
         "Content-Type": "image/png",
         "Cache-Control": "private, no-store",
-        "Content-Disposition": `inline; filename="asset-${asset.id}.png"`,
+        "Content-Disposition": `inline; filename="asset-${asset.assetCode.replace(/[^A-Za-z0-9-]/g, "-")}.png"`,
       },
     });
   } catch (e) {

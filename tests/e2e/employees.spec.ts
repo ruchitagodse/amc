@@ -4,7 +4,7 @@ test("employee records can be created, edited, assigned assets and returned", as
   page,
 }) => {
   await page.goto("/login");
-  await page.getByRole("button", { name: "Enter fictional demo" }).click();
+  await page.getByRole("button", { name: "Enter demo" }).click();
   await expect(
     page.getByRole("heading", { name: "Asset overview", exact: true }),
   ).toBeVisible();

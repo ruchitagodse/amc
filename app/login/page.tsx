@@ -129,7 +129,7 @@ export default function Login() {
             disabled={busy}
             onClick={() => void login(true)}
           >
-            {busy ? "Opening workspace…" : "Enter fictional demo"}
+            {busy ? "Opening workspace…" : "Enter demo"}
             <ArrowRight size={17} />
           </button>
         )}
@@ -152,8 +152,7 @@ export default function Login() {
           </div>
         )}
         <p className="login-foot">
-          <ShieldCheck size={16} /> Administrator access · Fictional demo data
-          only
+          <ShieldCheck size={16} /> Administrator access · Asset management
         </p>
       </section>
     </main>

@@ -133,8 +133,8 @@ export function Scanner() {
       </div>
       <h2>Scan an asset label</h2>
       <p className="muted">
-        Point your camera at an AssetDesk QR code to open its secure asset
-        details.
+        Point your camera at an AssetDesk QR code to open its public asset
+        information card.
       </p>
       <video
         ref={video}
@@ -178,7 +178,7 @@ export function Scanner() {
           Asset QR URL
           <input
             name="url"
-            placeholder="https://your-demo-host/assets/…"
+            placeholder="https://your-host/public/assets/…"
             required
           />
         </label>

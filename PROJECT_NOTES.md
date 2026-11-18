@@ -55,3 +55,16 @@
 - Employee records require no Firebase login or password. Employee self-service remains outside this phase.
 - User narrowed this change to employee management; proposed mobile layout changes were removed. Existing mobile layout is preserved.
 - Added a targeted employee domain test and browser workflow for create, edit, persistence, duplicate rejection, allocation and return. `TESTING.md` contains the manual employee walkthrough. A fictional test-build helper keeps browser checks isolated when local cloud credentials are configured.
+
+## Repair completion and visible wording
+- Added an explicit Repair status selector and named actions such as Mark as repaired and Mark as returned. The dialog shows the current saved status separately from the chosen update.
+- Forward status updates can record completed work without inventing skipped milestones. Repaired/Returned require actual cost; Returned requires a saved Repaired state. Duplicate retries remain idempotent and backwards transitions are rejected.
+- Removed the word requested by the user from login/footer/sidebar messages and future seed notes. The known legacy allocation-note label is rendered as Demonstration allocation while preserving original audit records.
+- Verification: fourteen unit/runtime tests pass; the phone repair selector and complete repair browser walkthrough both pass, including actual-cost persistence and one lifecycle event per completion/return. TypeScript and ESLint pass. Screenshot reviewed at `test-results/mark-repaired-phone.png`.
+
+## Enterprise desktop UI and public QR access
+- Shared stylesheet updated to a white/light-gray/navy palette with teal/blue accents, consistent desktop typography, tables, cards, forms, buttons and modals. Existing workspace layouts and business modules are reused; no mobile redesign.
+- New QR labels use server-generated 256-bit random tokens. Optional asset token/revocation fields and a private hashed lookup collection support anonymous reads across tenants without publishing database IDs. Lookup creation, rotation and deletion share the asset transaction.
+- Public card and GET-only API use an explicit whitelist: public asset code, name, category, brand, model, status, condition. No employee/contact/serial/cost/vendor/notes or tenant/database identifiers are serialized. Admin APIs, QR PNG download and token mutations stay authenticated.
+- Public scanner is accessible without login. Admin controls preview, revoke and regenerate public links with confirmation. Legacy labels stay private and must be replaced; brand/model can be filled through existing asset forms.
+- Validation: TypeScript, ESLint and production build pass. Eighteen unit/runtime tests, five targeted browser tests and two Firebase emulator integration/rules tests pass. Tests verify anonymous scanning, the exact public-field allowlist, protected admin operations, token rotation/revocation, transaction-backed hashed lookups, all demo labels and existing repair workflows. Reviewed screenshots: `enterprise-dashboard.png`, `enterprise-asset-form.png`, `public-asset-card.png` in ignored `test-results/`.

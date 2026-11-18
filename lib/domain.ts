@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { QR_TOKEN_PATTERN } from "./public-asset";
 import {
   ConflictError,
   NotFoundError,
@@ -21,6 +22,8 @@ export type Asset = {
   assetCode: string;
   assetCategoryId: string;
   serialNumber: string;
+  manufacturer?: string;
+  model?: string;
   vendorId: string;
   purchaseOrRentalPrice: number;
   procuredOn: string;
@@ -28,6 +31,8 @@ export type Asset = {
   conditionStatus: "working" | "not_working" | "repaired";
   employeeId: string | null;
   qrGeneratedAt: string | null;
+  qrToken?: string | null;
+  qrRevokedAt?: string | null;
   createdAt: string;
 };
 export type Category = {
@@ -121,6 +126,8 @@ export const commandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("asset.create"),
+    manufacturer: z.string().trim().max(160).optional(),
+    model: z.string().trim().max(160).optional(),
     assetName: text,
     assetCategoryId: id,
     serialNumber: z.string().trim().min(1).max(120),
@@ -130,6 +137,8 @@ export const commandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("asset.edit"),
+    manufacturer: z.string().trim().max(160).optional(),
+    model: z.string().trim().max(160).optional(),
     assetId: id,
     assetName: text,
     serialNumber: z.string().trim().min(1).max(120),
@@ -172,6 +181,8 @@ export const commandSchema = z.discriminatedUnion("type", [
     notes: z.string().trim().min(3).max(1500),
   }),
   z.object({ type: z.literal("qr.generate"), assetId: id }),
+  z.object({ type: z.literal("qr.regenerate"), assetId: id }),
+  z.object({ type: z.literal("qr.revoke"), assetId: id }),
   z.object({
     type: z.literal("repair.create"),
     assetId: id,
@@ -196,6 +207,7 @@ export function applyCommand(
   key: string,
   actor: string,
   now = new Date().toISOString(),
+  context: { qrToken?: string } = {},
 ): State {
   if (!/^[\w-]{8,100}$/.test(key))
     throw new ValidationError("A valid idempotency key is required");
@@ -261,6 +273,8 @@ export function applyCommand(
       vendorId: c.vendorId,
       purchaseOrRentalPrice: c.purchaseOrRentalPrice,
       procuredOn: c.procuredOn,
+      ...(c.manufacturer !== undefined ? { manufacturer: c.manufacturer } : {}),
+      ...(c.model !== undefined ? { model: c.model } : {}),
     });
     event(a.id, "Asset Updated");
   } else if (c.type === "category.save") {
@@ -378,11 +392,33 @@ export function applyCommand(
       );
     a.status = "retired";
     event(a.id, "Asset Retired", c.notes);
-  } else if (c.type === "qr.generate") {
+  } else if (c.type === "qr.generate" || c.type === "qr.regenerate") {
     const a = asset(c.assetId);
-    if (!a.qrGeneratedAt) {
+    if (!a.qrToken || c.type === "qr.regenerate") {
+      if (!context.qrToken || !QR_TOKEN_PATTERN.test(context.qrToken))
+        throw new ValidationError(
+          "A server-generated public QR token is required",
+        );
+      if (
+        s.assets.some(
+          (other) => other.id !== a.id && other.qrToken === context.qrToken,
+        )
+      )
+        throw new ConflictError("QR token collision");
+      if (a.qrToken === context.qrToken)
+        throw new ConflictError("Regeneration requires a new QR token");
+      const generatedBefore = !!a.qrGeneratedAt;
       a.qrGeneratedAt = now;
-      event(a.id, "QR Generated");
+      a.qrToken = context.qrToken;
+      a.qrRevokedAt = null;
+      event(a.id, generatedBefore ? "QR Link Regenerated" : "QR Generated");
+    }
+  } else if (c.type === "qr.revoke") {
+    const a = asset(c.assetId);
+    if (a.qrToken) {
+      a.qrToken = null;
+      a.qrRevokedAt = now;
+      event(a.id, "QR Link Revoked");
     }
   } else if (c.type === "repair.create") {
     const a = asset(c.assetId);
@@ -404,8 +440,12 @@ export function applyCommand(
   } else if (c.type === "repair.advance") {
     const r = s.repairs.find((r) => r.id === c.repairId);
     if (!r) throw new NotFoundError("Repair");
-    if (repairStages.indexOf(c.status) !== repairStages.indexOf(r.status) + 1)
-      throw new ConflictError("Repair must advance one stage at a time");
+    if (repairStages.indexOf(c.status) <= repairStages.indexOf(r.status))
+      throw new ConflictError("Repair status must move forward");
+    if (c.status === "Returned" && r.status !== "Repaired")
+      throw new ConflictError(
+        "Mark the repair as Repaired before marking it Returned",
+      );
     if (["Repaired", "Returned"].includes(c.status) && c.actualCost === null)
       throw new ValidationError("Actual repair cost is required");
     r.status = c.status;
@@ -452,7 +492,7 @@ export function resolveAssetQr(value: string, origin: string): string {
   }
   if (
     url.origin !== origin ||
-    !/^\/assets\/[\w-]+$/.test(url.pathname) ||
+    !/^\/public\/assets\/[A-Za-z0-9_-]{43}$/.test(url.pathname) ||
     url.search ||
     url.hash
   )

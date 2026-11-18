@@ -17,7 +17,7 @@
     "typecheck": "tsc --noEmit",
     "seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
     "provision:admin": "tsx --env-file-if-exists=.env.local scripts/provision-admin.ts",
-    "test": "tsx --test tests/domain.test.ts tests/session.test.ts tests/api-response.test.ts",
+    "test": "tsx --test tests/domain.test.ts tests/session.test.ts tests/api-response.test.ts tests/public-qr.test.ts",
     "test:e2e": "playwright test",
     "test:build": "node scripts/build-demo-tests.mjs",
     "test:employees": "tsx --test --test-name-pattern=employees tests/domain.test.ts",

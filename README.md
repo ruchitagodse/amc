@@ -28,7 +28,7 @@ The initial seed contains 12 fictional assets, 5 employees and 2 vendors. The De
 1. Open **Asset Master → Dell Latitude 5440**.
 2. Select **Generate QR**, download PNG or print its label.
 3. Select **Assign asset → Rahul Sharma**.
-4. Open **Scan QR Code** and use the camera, upload the downloaded PNG, or paste the label URL.
+4. Open **Scan QR Code** and use the camera, upload the downloaded PNG, or paste the label URL. It opens the public, read-only asset card without sign-in. Return to the internal asset details for administrator actions.
 5. Select **Report damage**, enter “Battery no longer holds charge”, choose **ABC Technologies**, and enter the date and estimate.
 6. Advance **Sent to Vendor → Under Repair → Repaired → Returned**, recording actual cost and notes. Actual cost is required to complete the repair.
 7. **Returned** in the repair register means received back from the vendor. Use **Return asset** to close Rahul's allocation and return the laptop to available inventory.
@@ -38,7 +38,7 @@ Dashboard counts refresh every 15 seconds and immediately after a change. Assign
 
 ## Separate Firebase configuration
 
-No cloud project has been created or connected. Use a **new, dedicated demo project**; never use production credentials.
+Use a **dedicated development project**; never use production credentials.
 
 1. Copy `.env.example` to `.env.local`. Set `AMS_STORE=firestore`, a new `FIREBASE_PROJECT_ID`, matching `AMS_FIREBASE_PROJECT_CONFIRM`, service-account email/private key, and a random `SESSION_SECRET` of at least 32 characters.
 2. Set the matching `NEXT_PUBLIC_FIREBASE_*` values. Enable email/password sign-in in Firebase Authentication. Google and Microsoft popup sign-in are also supported when those providers and authorized domains are configured in the separate Firebase project. All providers require a provisioned administrator account. Public Firebase app configuration is not a service-account secret.
@@ -47,9 +47,19 @@ No cloud project has been created or connected. Use a **new, dedicated demo proj
 5. Deploy rules with `npx firebase deploy --only firestore:rules,storage --project YOUR_SEPARATE_PROJECT_ID` after reviewing the explicit project ID.
 6. Rebuild after setting public Firebase values. Firebase mode disables the local demo login. Each API request rechecks the current user's enabled state, administrator claim and tenant claim. The signed session is HTTP-only and lasts seven days; role/tenant changes revoke access immediately.
 
-All direct Firestore and Storage client access is denied. The server Admin SDK is the only data access path; server commands validate input, tenant context and lifecycle transitions. Scope is intentionally IT administrator only. No public employee endpoint or file uploads are exposed.
+All direct Firestore and Storage client access is denied. The server Admin SDK is the only data access path; server commands validate input, tenant context and lifecycle transitions. Administrative data and mutations require a verified tenant administrator. The only anonymous asset endpoint is a token-based, read-only projection containing the public asset ID, name, category, brand/model, status and condition. Employee, contact, serial-number, cost and internal-note fields are never included.
 
 Firestore stores the bounded demo aggregate at `amsTenants/{tenantId}/state/current`, updated in transactions. This adapter deliberately caps payloads at 850 KB. Split into per-entity collections and indexed queries before a larger deployment. The source Prisma schema and HRMS data have not been migrated or modified.
+
+## Public QR links
+
+Each newly generated label points to `/public/assets/{token}`, using 32 cryptographically random bytes encoded as a 43-character URL-safe token. It contains no database ID. The anonymous page and `/api/public/assets/{token}` expose the same explicit seven-field whitelist. Neither accepts edits, and responses are not cached or indexed.
+
+In **Asset Master → asset details → Asset QR label**, administrators can download/print the label, open the public card, **Regenerate link**, or **Revoke link**. Both latter actions require confirmation. Regeneration invalidates the old token and requires replacing printed labels. Revocation immediately prevents fresh requests from resolving that token. Changes to status, condition or brand/model appear on the current public card without regenerating it.
+
+Firestore stores token hashes in private `amsQrLinks/{sha256(token)}` lookup documents. The lookup and asset token are updated atomically in the existing asset transaction. Local demo mode uses the existing atomic file store. Existing rules deny direct reads/writes to this lookup collection as well.
+
+Legacy ID-based labels remain protected administrator URLs. They do not become public automatically: generate a new public QR label for each asset and replace old prints. Optional Brand / manufacturer and Model fields are available in asset create/edit; existing records without them display **Not specified**.
 
 ## Vercel deployment
 
@@ -68,9 +78,15 @@ Enable the required Firebase sign-in providers, authorize the deployed domain, p
 
 After deploying, `/api/state` should return a JSON 401 before sign-in, or a JSON 503 naming missing configuration. An empty 500 from every API route indicates a function startup/runtime failure: inspect the first error in the deployment's Vercel Runtime Logs. The frontend now handles empty/non-JSON responses and stops showing an indefinite loading state; it cannot repair a remote server startup failure.
 
+## Complete a repair
+
+Open the asset's repair record and its status action. In **Repair status**, choose **Repaired**, enter the actual cost and repair notes, then select **Mark as repaired**. If the work is already complete, you can choose Repaired from a pending stage without entering intermediate statuses; history records only the status changes you actually saved.
+
+Next select **Mark as returned** to record receipt from the repair vendor. Returned becomes available after Repaired. This preserves an employee's active allocation; **Return asset** is a separate action used when the employee gives the asset back to inventory.
+
 ## Mobile QR demonstration
 
-Physical mobile camera scanning requires a reachable HTTPS deployment configured in Firebase mode. Set `AMS_PUBLIC_URL` to that deployment's exact origin before creating/downloading labels. Sign in on the mobile device first. The local loopback-only demo cannot be opened from a phone on another device. Camera permissions must be allowed; image upload and URL entry are available as fallbacks. A QR holds only the asset detail URL, never employee or financial data.
+Physical camera scanning requires a reachable HTTPS deployment configured in Firebase mode. Set `AMS_PUBLIC_URL` to that deployment's exact origin before creating/downloading labels. No sign-in is needed for the scanner or public card; sign-in remains required to manage assets. The local loopback-only demo cannot be opened from a phone on another device. Camera permissions must be allowed; image upload and URL entry are available as fallbacks. A QR holds only a random-token public URL, never employee or financial data.
 
 ## Verification
 
